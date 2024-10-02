@@ -11,7 +11,7 @@ use rpc_client::RpcClient;
 use rpc_replay::block_context::build_block_context;
 use rpc_replay::rpc_state_reader::AsyncRpcStateReader;
 use rpc_replay::transactions::{starknet_rs_to_blockifier, ToBlockifierError};
-use rpc_utils::{get_class_proofs, get_storage_proofs};
+use rpc_utils::get_storage_proofs;
 use starknet::core::types::{BlockId, MaybePendingBlockWithTxHashes, MaybePendingBlockWithTxs, StarknetError};
 use starknet::providers::{Provider, ProviderError};
 use starknet_api::StarknetApiError;
@@ -65,16 +65,29 @@ pub enum ProveBlockError {
     ToBlockifierError(#[from] ToBlockifierError),
 }
 
-fn compute_class_commitment(
-    previous_class_proofs: &HashMap<Felt, PathfinderClassProof>,
-    class_proofs: &HashMap<Felt, PathfinderClassProof>,
-) -> CommitmentInfo {
-    for (class_hash, previous_class_proof) in previous_class_proofs {
-        previous_class_proof.verify(*class_hash).expect("Could not verify previous_class_proof");
-    }
+async fn compute_class_commitment(
+    class_hash_to_compiled_class_hash: &HashMap<Felt, Felt>,
+    rpc_client: &RpcClient,
+    block_number: u64,
+) -> Result<CommitmentInfo, reqwest::Error> {
+    let mut class_proofs: HashMap<Felt252, PathfinderClassProof> =
+        HashMap::with_capacity(class_hash_to_compiled_class_hash.len());
 
-    for (class_hash, class_proof) in class_proofs {
-        class_proof.verify(*class_hash).expect("Could not verify class_proof");
+    let mut previous_class_proofs: HashMap<Felt252, PathfinderClassProof> =
+        HashMap::with_capacity(class_hash_to_compiled_class_hash.len());
+
+    for (class_hash, compiled_class_hash) in class_hash_to_compiled_class_hash.iter() {
+        let current_block_proof = rpc_client.pathfinder_rpc().get_class_proof(block_number, class_hash).await?;
+        let previous_block_proof = rpc_client.pathfinder_rpc().get_class_proof(block_number - 1, class_hash).await?;
+
+        // If compiled_class_hash == Felt::ZERO --> the class is declared in the current block
+        if *compiled_class_hash != Felt252::ZERO {
+            previous_block_proof.verify(*class_hash).expect("Could not verify previous_class_proof");
+        }
+        current_block_proof.verify(*class_hash).expect("Could not verify current_class_proof");
+
+        class_proofs.insert(*class_hash, current_block_proof);
+        previous_class_proofs.insert(*class_hash, previous_block_proof);
     }
 
     let previous_class_proofs: Vec<_> = previous_class_proofs.values().cloned().collect();
@@ -95,7 +108,7 @@ fn compute_class_commitment(
     log::debug!("previous class trie root: {}", previous_root.to_hex_string());
     log::debug!("current class trie root: {}", updated_root.to_hex_string());
 
-    CommitmentInfo { previous_root, updated_root, tree_height: 251, commitment_facts: class_commitment_facts }
+    Ok(CommitmentInfo { previous_root, updated_root, tree_height: 251, commitment_facts: class_commitment_facts })
 }
 
 pub async fn prove_block(
@@ -256,16 +269,6 @@ pub async fn prove_block(
         .map(|(class_hash, component_hashes)| (class_hash, component_hashes.to_vec()))
         .collect();
 
-    // query storage proofs for each accessed contract
-    let class_hashes: Vec<&Felt252> = class_hash_to_compiled_class_hash.keys().collect();
-    // TODO: we fetch proofs here for block-1, but we probably also need to fetch at the current
-    //       block, likely for contracts that are deployed in this block
-    let class_proofs =
-        get_class_proofs(&rpc_client, block_number, &class_hashes[..]).await.expect("Failed to fetch class proofs");
-    let previous_class_proofs = get_class_proofs(&rpc_client, block_number - 1, &class_hashes[..])
-        .await
-        .expect("Failed to fetch previous class proofs");
-
     let visited_pcs: HashMap<Felt252, Vec<Felt252>> = blockifier_state
         .visited_pcs
         .iter()
@@ -300,7 +303,10 @@ pub async fn prove_block(
         commitment_facts: global_state_commitment_facts,
     };
 
-    let contract_class_commitment_info = compute_class_commitment(&previous_class_proofs, &class_proofs);
+    let contract_class_commitment_info =
+        compute_class_commitment(&class_hash_to_compiled_class_hash, &rpc_client, block_number)
+            .await
+            .expect("Fail to fetch proofs");
 
     let os_input = StarknetOsInput {
         contract_state_commitment_info,
