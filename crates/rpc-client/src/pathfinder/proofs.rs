@@ -111,7 +111,7 @@ pub fn verify_proof<H: HashFunctionType>(
     let mut parent_hash = commitment;
     let mut trie_node_iter = proof.iter();
 
-    // The tree height is 251, so the first 5 bits are ignored.
+    // The tree height is 251, so the first 5 bits are ignored
     let start = 5;
     let mut index = start;
 
@@ -148,4 +148,95 @@ pub fn verify_proof<H: HashFunctionType>(
     }
 
     Ok(())
+}
+
+// pub fn verify_proof<H: HashFunctionType>(
+//     key: Felt,
+//     commitment: Felt,
+//     proof: &[TrieNode],
+// ) -> Result<(), ProofVerificationError> {
+/// Describes the direction a child of a [BinaryNode] may have.
+///
+/// Binary nodes have two children, one left and one right.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Left,
+    Right,
+}
+
+pub enum Membership {
+    Member,
+    NonMember,
+}
+
+fn verify_proof_pathfinder<H: HashFunctionType>(
+    key: Felt,
+    commitment: Felt,
+    proofs: &[TrieNode],
+) -> Option<Membership> {
+    let bits = key.to_bits_be();
+
+    let mut parent_hash = commitment;
+    let mut trie_node_iter = proof.iter();
+
+    // The tree height is 251, so the first 5 bits are ignored
+    let start = 5;
+    let mut index = start;
+
+    // Protect from ill-formed keys
+    // if key.len() != 251 {
+    //     return None;
+    // }
+
+    let mut expected_hash = root;
+    let mut remaining_path: &BitSlice<u8, Msb0> = key;
+
+    for proof_node in proofs.iter() {
+        // Hash mismatch? Return None.
+        if proof_node.hash::<PedersenHash>() != expected_hash {
+            return None;
+        }
+        match proof_node {
+            TrieNode::Binary { left, right } => {
+                // Direction will always correspond to the 0th index
+                // because we're removing bits on every iteration.
+                let direction = Direction::from(remaining_path[0]);
+
+                // Set the next hash to be the left or right hash,
+                // depending on the direction
+                expected_hash = match direction {
+                    Direction::Left => *left,
+                    Direction::Right => *right,
+                };
+
+                // Advance by a single bit
+                remaining_path = &remaining_path[1..];
+            }
+            TrieNode::Edge { child, path } => {
+                if path != &remaining_path[..path.len()] {
+                    // If paths don't match, we've found a proof of non membership because
+                    // we:
+                    // 1. Correctly moved towards the target insofar as is possible, and
+                    // 2. hashing all the nodes along the path does result in the root hash,
+                    //    which means
+                    // 3. the target definitely does not exist in this tree
+                    return Some(Membership::NonMember);
+                }
+
+                // Set the next hash to the child's hash
+                expected_hash = *child;
+
+                // Advance by the whole edge path
+                remaining_path = &remaining_path[path.len()..];
+            }
+        }
+    }
+
+    // At this point, we should reach `value` !
+    if expected_hash == value {
+        Some(Membership::Member)
+    } else {
+        // Hash mismatch. Return `None`.
+        None
+    }
 }
