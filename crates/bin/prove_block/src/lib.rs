@@ -65,7 +65,7 @@ pub enum ProveBlockError {
     ToBlockifierError(#[from] ToBlockifierError),
 }
 
-fn compute_class_commitment(
+pub fn compute_class_commitment(
     previous_class_proofs: &HashMap<Felt, PathfinderClassProof>,
     class_proofs: &HashMap<Felt, PathfinderClassProof>,
 ) -> CommitmentInfo {
