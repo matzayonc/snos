@@ -206,7 +206,7 @@ pub fn deploy_account_v3_to_internal_tx(input: DeployAccountTransactionV3) -> In
     }
 }
 
-pub(crate) fn starknet_rs_tx_to_internal_tx(tx: Transaction) -> InternalTransaction {
+pub fn starknet_rs_tx_to_internal_tx(tx: Transaction) -> InternalTransaction {
     match tx {
         Transaction::Invoke(invoke_tx) => invoke_tx_to_internal_tx(invoke_tx),
         Transaction::L1Handler(l1_handler_tx) => l1handler_to_internal_tx(l1_handler_tx),

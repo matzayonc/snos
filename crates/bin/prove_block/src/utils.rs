@@ -12,7 +12,7 @@ use starknet_api::state::StorageKey;
 // TODO: check if we can handle this just reexecuting tx using blockifier
 //
 // Returns a HashSet of contracts and a HashSet of classes encountered along the way.
-pub(crate) fn get_subcalled_contracts_from_tx_traces(
+pub fn get_subcalled_contracts_from_tx_traces(
     traces: &[TransactionTraceWithHash],
 ) -> (HashSet<Felt252>, HashSet<Felt252>) {
     let mut contracts_subcalled: HashSet<Felt252> = HashSet::new();
@@ -82,7 +82,7 @@ fn process_function_invocations(
 /// Utility to get all the accesed keys from TxexecutionInfo resulted from
 /// Reexecuting all block tx using blockifier
 /// We need this as the OS require proofs for all the accessed values
-pub(crate) fn get_all_accessed_keys(
+pub fn get_all_accessed_keys(
     tx_execution_infos: &[TransactionExecutionInfo],
 ) -> HashMap<ContractAddress, HashSet<StorageKey>> {
     let mut accessed_keys_by_address: HashMap<ContractAddress, HashSet<StorageKey>> = HashMap::new();

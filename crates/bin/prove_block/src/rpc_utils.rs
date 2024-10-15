@@ -109,7 +109,7 @@ fn verify_storage_proof(contract_data: &ContractData, keys: &[Felt]) -> Vec<Felt
     additional_keys
 }
 
-pub(crate) async fn get_storage_proofs(
+pub async fn get_storage_proofs(
     client: &RpcClient,
     block_number: u64,
     tx_execution_infos: &[TransactionExecutionInfo],
@@ -190,7 +190,7 @@ fn merge_storage_proofs(proofs: Vec<PathfinderProof>) -> PathfinderProof {
     PathfinderProof { class_commitment, state_commitment, contract_proof, contract_data }
 }
 
-pub(crate) async fn get_class_proofs(
+pub async fn get_class_proofs(
     rpc_client: &RpcClient,
     block_number: u64,
     class_hashes: &[&Felt],
@@ -205,7 +205,7 @@ pub(crate) async fn get_class_proofs(
     Ok(proofs)
 }
 
-pub(crate) fn get_starknet_version(block_with_txs: &BlockWithTxs) -> blockifier::versioned_constants::StarknetVersion {
+pub fn get_starknet_version(block_with_txs: &BlockWithTxs) -> blockifier::versioned_constants::StarknetVersion {
     let starknet_version_str = &block_with_txs.starknet_version;
     match starknet_version_str.as_ref() {
         "0.13.0" => blockifier::versioned_constants::StarknetVersion::V0_13_0,

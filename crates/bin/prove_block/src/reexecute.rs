@@ -74,7 +74,7 @@ pub fn reexecute_transactions_with_blockifier<S: StateReader>(
     Ok(tx_execution_infos)
 }
 
-pub(crate) struct ProverPerContractStorage {
+pub struct ProverPerContractStorage {
     rpc_client: RpcClient,
     block_id: BlockId,
     contract_address: Felt252,
@@ -105,9 +105,7 @@ impl ProverPerContractStorage {
     }
 }
 
-pub(crate) fn format_commitment_facts<H: HashFunctionType>(
-    trie_nodes: &[Vec<TrieNode>],
-) -> HashMap<Felt252, Vec<Felt252>> {
+pub fn format_commitment_facts<H: HashFunctionType>(trie_nodes: &[Vec<TrieNode>]) -> HashMap<Felt252, Vec<Felt252>> {
     let mut facts = HashMap::new();
 
     for nodes in trie_nodes {
